@@ -18,55 +18,24 @@ const DASHBOARD_PASSWORD = 'Motory@2026';
 const dashboardPath = path.join(SRC_DIR, 'Motory_Dashboard.html');
 const dashboardContent = fs.readFileSync(dashboardPath, 'utf8');
 
-// ─── AES-GCM Encryption ───────────────────────────────────────────────────────
 async function encrypt(text, password) {
   const salt = crypto.getRandomValues(new Uint8Array(32));
   const iv   = crypto.getRandomValues(new Uint8Array(12));
-
-  const keyMaterial = await crypto.webcrypto.subtle.importKey(
-    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
-  );
-  const key = await crypto.webcrypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt']
-  );
-
-  const encrypted = await crypto.webcrypto.subtle.encrypt(
-    { name: 'AES-GCM', iv, tagLength: 128 },
-    key,
-    new TextEncoder().encode(text)
-  );
-
+  const keyMaterial = await crypto.webcrypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.webcrypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+  const encrypted = await crypto.webcrypto.subtle.encrypt({ name: 'AES-GCM', iv, tagLength: 128 }, key, new TextEncoder().encode(text));
   const encArr = new Uint8Array(encrypted);
-  const data   = encArr.slice(0, encArr.length - 16);
-  const tag    = encArr.slice(encArr.length - 16);
-
-  return {
-    salt: Buffer.from(salt).toString('base64'),
-    iv:   Buffer.from(iv).toString('base64'),
-    tag:  Buffer.from(tag).toString('base64'),
-    data: Buffer.from(data).toString('base64'),
-  };
+  const data = encArr.slice(0, encArr.length - 16);
+  const tag = encArr.slice(encArr.length - 16);
+  return { salt: Buffer.from(salt).toString('base64'), iv: Buffer.from(iv).toString('base64'), tag: Buffer.from(tag).toString('base64'), data: Buffer.from(data).toString('base64') };
 }
-
 
 (async () => {
   console.log('Encrypting dashboard...');
-  const ep    = await encrypt(dashboardContent, DASHBOARD_PASSWORD);
+  const ep = await encrypt(dashboardContent, DASHBOARD_PASSWORD);
   const epStr = JSON.stringify(ep);
-
-  const loginHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Motory Shop - Dashboard Access</title>
-</style>
-</head>`;
+  const loginHTML = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Motory Shop - Dashboard Access</title></head><body><script>const EP='${epStr}'</script></body></html>`;
   const outPath = path.join(REPO_ROOT, 'index.html');
   fs.writeFileSync(outPath, loginHTML);
-  console.log('Done!');
+  console.log('Done!', loginHTML.length, 'bytes');
 })();

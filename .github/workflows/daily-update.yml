@@ -1,0 +1,46 @@
+name: Daily Dashboard Update
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # 10:00 AM Saudi Arabia (UTC+3)
+  workflow_dispatch:        # Manual trigger from GitHub UI
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # Required to push commits
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Python dependencies
+        run: pip install requests beautifulsoup4 lxml playwright
+
+      - name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
+
+      - name: Scrape latest prices from Syarah
+        run: python src/scrape_prices.py
+
+      - name: Rebuild and encrypt dashboard
+        run: python src/rebuild_dashboard.py
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "Motory Bot"
+          git config user.email "motory-bot@motory.com"
+          git add index.html src/prices.json src/Motory_Dashboard.html
+          git diff --staged --quiet && echo "No price changes today" || git commit -m "Auto-update: prices $(date '+%Y-%m-%d %H:%M UTC')"
+          git push

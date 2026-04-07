@@ -1,0 +1,16 @@
+{
+  "last_updated": "2026-04-08",
+  "password": "Motory@2026",
+  "cars": [
+    {
+      "seg": "Economy",
+      "model": "Hyundai Accent",
+      "variant": "FLEET",
+      "ms": 62088,
+      "sy": 62675,
+      "ym": 68885,
+      "ha": 65000,
+      "da": 68885
+  }],
+  "syarah_urls": {}
+}

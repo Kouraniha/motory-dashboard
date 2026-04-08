@@ -1,43 +1,24 @@
+#!/usr/bin/env python3
 """
-Motory Price Scraper — GitHub Actions version
-Scrapes Syarah.com for latest car prices using Playwright (handles JS rendering).
-Updates src/prices.json with fresh prices.
-
-Usage: python src/scrape_prices.py
+scrape_prices.py  —  Scrape latest SAR prices from Syarah.com
+Runs as part of the GitHub Actions daily-update workflow.
+Falls back to existing prices gracefully if Syarah is unreachable.
 """
 
-import json
-import os
-import re
-import sys
+import json, sys, os, re
 from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-# ─── Paths ────────────────────────────────────────────────────────────────────
-REPO_ROOT   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PRICES_JSON = os.path.join(REPO_ROOT, "src", "prices.json")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PRICES_FILE = os.path.join(REPO_ROOT, "src", "prices.json")
 
-# ─── Load current prices ──────────────────────────────────────────────────────
-with open(PRICES_JSON) as f:
-    data = json.load(f)
-
-cars        = data["cars"]
-syarah_urls = data.get("syarah_urls", {})
-today       = datetime.now().strftime("%Y-%m-%d")
-
-print(f"Scraping Syarah prices — {today}")
-print(f"Cars to scrape: {len(syarah_urls)}\n")
-
-# ─── Price extraction helper ──────────────────────────────────────────────────
 PRICE_JS = """
 () => {
-    // Collect all numeric tokens that look like SAR prices (10,000 – 1,000,000)
     const all = [];
     document.querySelectorAll('*').forEach(el => {
-        if (el.children.length > 0) return;   // leaf nodes only
+        if (el.children.length > 0) return;
         const t = el.textContent.trim();
-        // Match patterns like "62,675" or "62675"
-        const m = t.match(/^(\\d{1,3}(?:,\\d{3})+|\\d{5,7})$/);
+        const m = t.match(/^(\d{1,3}(?:,\d{3})+|\d{5,7})$/);
         if (m) {
             const n = parseInt(m[1].replace(/,/g,''));
             if (n >= 15000 && n <= 1000000) all.push(n);
@@ -47,76 +28,99 @@ PRICE_JS = """
 }
 """
 
-def scrape_syarah(page, model, url):
-    """Return the lowest SAR price found on a Syarah model page, or None."""
-    try:
-        page.goto(url, wait_until="domcontentloaded", timeout=35000)
-        # Give React/Next.js time to hydrate
-        page.wait_for_timeout(4000)
-        price = page.evaluate(PRICE_JS)
-        if price:
-            print(f"  ✅  {model:30s}  {price:>8,} SAR")
-        else:
-            print(f"  ⚠️   {model:30s}  price not found — keeping current")
-        return price
-    except PWTimeout:
-        print(f"  ⏱️   {model:30s}  timeout — keeping current")
-        return None
-    except Exception as e:
-        print(f"  ❌  {model:30s}  error: {e}")
-        return None
+def scrape_price(page, url, retries=2):
+    """Try to scrape a price from a Syarah URL, with retries."""
+    for attempt in range(retries + 1):
+        try:
+            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            # Wait for React to render content
+            page.wait_for_timeout(8000)
+            price = page.evaluate(PRICE_JS)
+            if price:
+                return price
+            # Extra wait and retry
+            if attempt < retries:
+                page.wait_for_timeout(4000)
+        except PWTimeout:
+            if attempt < retries:
+                continue
+        except Exception as e:
+            print(f"    Error on attempt {attempt+1}: {e}")
+            if attempt < retries:
+                continue
+    return None
 
-# ─── Build model → car index map ──────────────────────────────────────────────
-model_index = {car["model"].replace("*","").strip(): i for i, car in enumerate(cars)}
 
-# ─── Scrape ───────────────────────────────────────────────────────────────────
-updated = 0
-failed  = 0
+def main():
+    with open(PRICES_FILE, "r", encoding="utf-8") as f:
+        cars = json.load(f)
 
-with sync_playwright() as pw:
-    browser = pw.chromium.launch(headless=True)
-    ctx     = browser.new_context(
-        user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        locale="ar-SA",
-        extra_http_headers={"Accept-Language": "ar-SA,ar;q=0.9,en;q=0.8"},
-    )
-    page = ctx.new_page()
+    print(f"Scraping Syarah prices — {datetime.utcnow().strftime('%Y-%m-%d')}")
+    print(f"Cars to scrape: {len(cars)}\n")
 
-    for model, url in syarah_urls.items():
-        clean = model.replace("*","").strip()
-        idx   = model_index.get(clean)
-        if idx is None:
-            print(f"  ⚠️   {model} — not found in cars list, skipping")
-            continue
+    updated = 0
+    failed = 0
 
-        price = scrape_syarah(page, model, url)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--lang=ar-SA",
+            ]
+        )
+        context = browser.new_context(
+            locale="ar-SA",
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 800},
+        )
+        page = context.new_page()
 
-        if price and price > 0:
-            cars[idx]["sy"] = price
-            # Update da (DriveArabia reference) if it was same as sy before
-            if cars[idx].get("da") == cars[idx].get("sy") or cars[idx].get("da") is None:
-                cars[idx]["da"] = price
-            updated += 1
-        else:
-            failed += 1
+        for car in cars:
+            url = car.get("syarah_url", "")
+            if not url:
+                failed += 1
+                print(f"⚠️  {car['model']} — no URL defined, skipping")
+                continue
 
-    browser.close()
+            price = scrape_price(page, url)
+            if price:
+                old = car.get("syarah_price")
+                car["syarah_price"] = price
+                car["last_updated"] = datetime.utcnow().strftime("%Y-%m-%d")
+                updated += 1
+                change = ""
+                if old and old != price:
+                    diff = price - old
+                    change = f"  (was {old:,}, Δ {'+' if diff>0 else ''}{diff:,})"
+                print(f"✅  {car['model']}: SAR {price:,}{change}")
+            else:
+                failed += 1
+                print(f"⚠️  {car['model']} price not found — keeping current")
 
-# ─── Save updated prices ──────────────────────────────────────────────────────
-data["last_updated"] = today
-data["cars"]         = cars
+        browser.close()
 
-with open(PRICES_JSON, "w") as f:
-    json.dump(data, f, indent=2)
+    print(f"\n{'─'*50}")
+    print(f"Scraping complete: {updated} updated, {len(cars)-updated} unchanged")
 
-print(f"\n{'─'*50}")
-print(f"Scraping complete:  {updated} updated,  {failed} unchanged")
-print(f"Saved: {PRICES_JSON}")
+    with open(PRICES_FILE, "w", encoding="utf-8") as f:
+        json.dump(cars, f, ensure_ascii=False, indent=2)
+    print(f"Saved: {PRICES_FILE}")
 
-if failed > len(syarah_urls) * 0.5:
-    print("\n⚠️  More than 50% of scrapes failed — check Syarah site structure")
-    sys.exit(1)   # Fail the workflow so we get a notification
+    # Warn but do NOT fail the workflow — rebuild still runs with existing prices
+    fail_rate = failed / len(cars) if cars else 0
+    if fail_rate > 0.5:
+        print(f"\n⚠️  Warning: {failed}/{len(cars)} scrapes failed ({fail_rate:.0%})")
+        print("   Dashboard will rebuild with existing prices.")
+    # Always exit 0 so the rebuild step runs
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

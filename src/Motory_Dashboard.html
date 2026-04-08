@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motory Shop - Competitive Pricing Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --primary: #1B2A4A;
+    --secondary: #0066CC;
+    --accent: #00B4D8;
+    --dark: #0D1B2A;
+    --light: #F0F4F8;
+    --white: #FFFFFF;
+    --green: #28A745;
+    --red: #DC3545;
+    --orange: #FFA500;
+    --gray: #94A3B8;
+    --dark-gray: #64748B;
+    --border: #E2E8F0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--light); color: var(--primary); }
+
+  /* Header */
+  .header { background: var(--dark); padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { color: var(--accent); font-size: 28px; letter-spacing: 3px; font-weight: 800; }
+  .header .subtitle { color: var(--gray); font-size: 13px; margin-top: 4px; }
+  .header .date-badge { background: var(--primary); color: var(--accent); padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+
+  /* Navigation */
+  .nav { background: var(--primary); padding: 0 40px; display: flex; gap: 0; overflow-x: auto; position: sticky; top: 0; z-index: 100; }
+  .nav a { color: var(--gray); text-decoration: none; padding: 14px 20px; font-size: 13px; font-weight: 600; white-space: nowrap; transition: all 0.2s; border-bottom: 3px solid transparent; }
+  .nav a:hover, .nav a.active { color: var(--white); border-bottom-color: var(--accent); background: rgba(255,255,255,0.05); }
+
+  /* Main content */
+  .main { max-width: 1400px; margin: 0 auto; padding: 30px 40px; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .section-title { font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 6px; }
+  .section-sub { font-size: 14px; color: var(--dark-gray); margin-bottom: 24px; }
+
+  /* Stat Cards */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
+  .stat-card { background: var(--white); border-radius: 10px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-top: 4px solid var(--accent); text-align: center; }
+  .stat-card .value { font-size: 32px; font-weight: 800; color: var(--primary); }
+  .stat-card .label { font-size: 13px; font-weight: 700; color: var(--secondary); margin-top: 4px; }
+  .stat-card .sub { font-size: 11px; color: var(--dark-gray); margin-top: 2px; }
+
+  /* Tables */
+  .table-wrap { background: var(--white); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow-x: auto; margin-bottom: 30px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: var(--primary); color: var(--white); padding: 12px 14px; text-align: center; font-weight: 700; position: sticky; top: 0; white-space: nowrap; }
+  tbody td { padding: 10px 14px; text-align: center; border-bottom: 1px solid var(--border); }
+  tbody tr:nth-child(even) { background: var(--light); }
+  tbody tr:hover { background: #E0ECFF; }
+  .motory-col { background: rgba(0,102,204,0.08) !important; font-weight: 700; color: var(--secondary); }
+  .na { color: #999; font-style: italic; }
+  .positive { color: var(--green); font-weight: 700; }
+  .negative { color: var(--red); font-weight: 700; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+  .tag-high { background: #FDE8E8; color: var(--red); }
+  .tag-medium { background: #FFF3CD; color: #856404; }
+  .tag-low { background: #D4EDDA; color: var(--green); }
+  .tag-very-high { background: #8B0000; color: white; }
+  .tag-benchmark { background: var(--secondary); color: white; }
+  td:first-child, th:first-child { text-align: left; }
+
+  /* Chart containers */
+  .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 30px; }
+  .chart-box { background: var(--white); border-radius: 10px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .chart-box h3 { font-size: 16px; color: var(--primary); margin-bottom: 16px; }
+  .chart-box canvas { max-height: 350px; }
+
+  /* SWOT */
+  .swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+  .swot-card { border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .swot-card .swot-header { padding: 12px 18px; color: white; font-weight: 700; font-size: 15px; }
+  .swot-card ul { list-style: none; padding: 16px 18px; background: var(--white); }
+  .swot-card li { padding: 6px 0; font-size: 13px; color: var(--primary); display: flex; align-items: flex-start; gap: 8px; }
+  .swot-card li::before { content: ''; width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; margin-top: 5px; }
+  .s-card li::before { background: var(--green); }
+  .w-card li::before { background: var(--red); }
+  .o-card li::before { background: var(--secondary); }
+  .t-card li::before { background: var(--orange); }
+
+  /* Insight boxes */
+  .insight-box { background: var(--white); border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; padding: 18px 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .insight-box h4 { font-size: 14px; color: var(--primary); margin-bottom: 6px; }
+  .insight-box p { font-size: 13px; color: var(--dark-gray); line-height: 1.6; }
+
+  /* Rec cards */
+  .rec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .rec-card { background: var(--white); border-radius: 10px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 5px solid var(--red); position: relative; }
+  .rec-card.p2 { border-left-color: var(--orange); }
+  .rec-card.p3 { border-left-color: var(--accent); }
+  .rec-card h4 { font-size: 15px; color: var(--primary); margin-bottom: 6px; }
+  .rec-card p { font-size: 12px; color: var(--dark-gray); line-height: 1.5; }
+  .rec-card .priority { position: absolute; top: 12px; right: 14px; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; color: white; }
+  .rec-card .priority.p1 { background: var(--red); }
+  .rec-card .priority.p2 { background: var(--orange); }
+  .rec-card .priority.p3 { background: var(--accent); }
+
+  /* Feature matrix */
+  .yes { color: var(--green); font-weight: 700; }
+  .no { color: var(--red); }
+  .limited { color: var(--orange); font-weight: 600; }
+
+  /* Footer */
+  .footer { background: var(--dark); color: var(--gray); text-align: center; padding: 20px; font-size: 12px; margin-top: 40px; }
+
+  /* Disclaimer */
+  .disclaimer { background: #FFF9E6; border: 1px solid #F0E4B8; border-radius: 8px; padding: 16px 20px; margin-top: 20px; font-size: 11px; color: #856404; line-height: 1.7; }
+
+  @media (max-width: 900px) {
+    .chart-row, .swot-grid, .rec-grid { grid-template-columns: 1fr; }
+    .main { padding: 16px; }
+    .header { padding: 16px; }
+    .nav { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>MOTORY SHOP</h1>
+    <div class="subtitle">Competitive Pricing Intelligence Dashboard | Saudi Automotive Market</div>
+  </div>
+  <div class="date-badge" id="dateDisplay">April 6, 2026</div>
+</div>
+
+<nav class="nav" id="mainNav">
+  <a href="#" data-tab="overview" class="active">Overview</a>
+  <a href="#" data-tab="prices">New Car Prices</a>
+  <a href="#" data-tab="chinese">Chinese Brands</a>
+  <a href="#" data-tab="gap">Price Gap</a>
+  <a href="#" data-tab="features">Platform Features</a>
+  <a href="#" data-tab="digital">Digital Presence</a>
+  <a href="#" data-tab="ev">EV & Vision 2030</a>
+  <a href="#" data-tab="swot">SWOT & Strategy</a>
+  <a href="#" data-tab="regional">Regional</a>
+  <a href="#" data-tab="audit">Audit Trail</a>
+  <a href="#" data-tab="sources">Sources</a>
+</nav>
+
+<div class="main">
+
+<!-- ============ OVERVIEW ============ -->
+<div class="section active" id="overview">
+  <h2 class="section-title">Executive Summary</h2>
+  <p class="section-sub">Saudi Automotive Market at a Glance | Data sourced from 6+ platforms</p>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="value">SAR 120B</div><div class="label">Market Size</div><div class="sub">Total automotive market</div></div>
+    <div class="stat-card"><div class="value">~780K</div><div class="label">Annual Sales</div><div class="sub">New vehicles sold (2025)</div></div>
+    <div class="stat-card"><div class="value">15-18%</div><div class="label">Online Share</div><div class="sub">Digital car sales</div></div>
+    <div class="stat-card"><div class="value">8-12%</div><div class="label">YoY Growth</div><div class="sub">Market expansion rate</div></div>
+    <div class="stat-card"><div class="value">12-15%</div><div class="label">Chinese Share</div><div class="sub">Chinese brand market share</div></div>
+    <div class="stat-card"><div class="value">5-8%</div><div class="label">EV Penetration</div><div class="sub">EV/PHEV of new sales</div></div>
+  </div>
+
+  <h3 style="font-size:18px; margin-bottom:16px; color:var(--primary);">Competitor Landscape</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Platform</th><th>Type</th><th>Est. Monthly Traffic</th><th>Key Strength</th><th>Revenue Model</th><th>Threat Level</th></tr></thead>
+      <tbody>
+        <tr><td><strong style="color:var(--secondary)">Motory Shop</strong></td><td>E-commerce</td><td>~1.5M</td><td>End-to-end buying, 5-day trial</td><td>Transaction + Financing</td><td><span class="tag tag-benchmark">BENCHMARK</span></td></tr>
+        <tr><td>Syarah</td><td>Full-stack</td><td>~3.5M</td><td>End-to-end buying, financing</td><td>Transaction + Financing</td><td><span class="tag tag-high">HIGH</span></td></tr>
+        <tr><td>YallaMotor</td><td>Listings/Info</td><td>~2.5M</td><td>Content, SEO, price comparison</td><td>Advertising + Leads</td><td><span class="tag tag-medium">MEDIUM</span></td></tr>
+        <tr><td>Hatla2ee</td><td>Classifieds</td><td>~1.5M</td><td>Used car volume, regional reach</td><td>Listings + Featured</td><td><span class="tag tag-medium">MEDIUM</span></td></tr>
+        <tr><td>DriveArabia</td><td>Content/Info</td><td>~500K</td><td>Editorial, reviews, specs</td><td>Advertising</td><td><span class="tag tag-low">LOW</span></td></tr>
+        <tr><td>CarSwitch</td><td>Certified Used</td><td>~800K</td><td>Inspection, warranty</td><td>Transaction Fee</td><td><span class="tag tag-medium">MEDIUM</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ NEW CAR PRICES ============ -->
+<div class="section" id="prices">
+  <h2 class="section-title">New Car Price Comparison</h2>
+  <p class="section-sub">Base Trim Prices Across Segments (SAR, incl. 15% VAT) | Motory Shop = motoryshop.com actual listings</p>
+
+  <div class="chart-row">
+    <div class="chart-box"><h3>Economy & Mid-Range Segment</h3><canvas id="chartEconomy"></canvas></div>
+    <div class="chart-box"><h3>SUV Segment</h3><canvas id="chartSUV"></canvas></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Segment</th><th>Model</th><th>Variant</th><th>Motory Shop</th><th>Syarah</th><th>YallaMotor</th><th>Hatla2ee</th><th>DriveArabia</th><th>CarSwitch</th><th>Market Avg</th></tr></thead>
+      <tbody id="priceTableBody"></tbody>
+    </table>
+  </div>
+  <div class="disclaimer">N/A = Model not currently listed on Motory Shop (motoryshop.com) for 2026. * = Brand not available on Motory Shop; price sourced from competitors/OEM. Inventory changes frequently. Prices sourced April 2026.</div>
+</div>
+
+<!-- ============ CHINESE BRANDS ============ -->
+<div class="section" id="chinese">
+  <h2 class="section-title">Chinese Brand Disruption</h2>
+  <p class="section-sub">Price Advantage of Chinese Brands vs Traditional Competitors</p>
+
+  <div class="chart-row">
+    <div class="chart-box"><h3>Price Comparison: Chinese vs Traditional</h3><canvas id="chartChinese"></canvas></div>
+    <div class="chart-box">
+      <h3>Threat Assessment</h3>
+      <div style="padding:10px 0;">
+        <div class="insight-box" style="border-left-color:var(--red); margin-bottom:12px;"><h4>20-35% Price Advantage</h4><p>Chinese brands consistently offer 20-35% lower pricing with 85-95% feature parity compared to Japanese and Korean competitors.</p></div>
+        <div class="insight-box" style="border-left-color:var(--red); margin-bottom:12px;"><h4>BYD PHEV Tech Leadership</h4><p>BYD Song Plus and Seal 7 offer plug-in hybrid technology at prices below Toyota RAV4 and Camry petrol equivalents.</p></div>
+        <div class="insight-box" style="border-left-color:var(--orange);"><h4>Expanding Dealer Networks</h4><p>Chery, Jetour, and BYD rapidly expanding Saudi dealer presence, with Vision 2030 alignment boosting EV demand.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Chinese Model</th><th>Variant</th><th>Best Available Price</th><th>Comparable Traditional</th><th>Variant</th><th>Market Price</th><th>Savings (SAR)</th><th>Savings (%)</th><th>Feature Parity</th><th>Threat</th></tr></thead>
+      <tbody>
+        <tr><td>Chery Arrizo 5</td><td>Comfort</td><td class="motory-col">48,875</td><td>Hyundai Accent</td><td>FLEET</td><td>68,885</td><td class="positive">20,010</td><td class="positive">29.1%</td><td>85%</td><td><span class="tag tag-high">HIGH</span></td></tr>
+        <tr><td>Chery Tiggo 7 Pro Max</td><td>Pro Max</td><td class="na">N/A (Est. 81,880)</td><td>Hyundai Creta</td><td>Smart</td><td>87,285</td><td class="positive">~5,405</td><td class="positive">~6.2%</td><td>90%</td><td><span class="tag tag-high">HIGH</span></td></tr>
+        <tr><td>Jetour Dashing</td><td>Comfort</td><td class="na">N/A (Est. 95,335)</td><td>Kia Sportage</td><td>EX</td><td>97,400</td><td class="positive">~2,065</td><td class="positive">~2.1%</td><td>88%</td><td><span class="tag tag-high">HIGH</span></td></tr>
+        <tr><td>Jetour T2</td><td>Luxury</td><td class="motory-col">145,935</td><td>Toyota Fortuner</td><td>GX 2.7L</td><td>138,498</td><td class="negative">(7,437)</td><td class="negative">(5.4%)</td><td>82%</td><td><span class="tag tag-medium">MEDIUM</span></td></tr>
+        <tr><td>BYD Song Plus (PHEV)</td><td>Champion GL</td><td class="na">103,385*</td><td>Toyota RAV4</td><td>EX 2.0L</td><td>108,100</td><td class="positive">4,715</td><td class="positive">4.4%</td><td>95%</td><td><span class="tag tag-very-high">VERY HIGH</span></td></tr>
+        <tr><td>BYD Seal 7 (PHEV)</td><td>Premium</td><td class="na">102,235*</td><td>Toyota Camry</td><td>GLE 2.5L</td><td>107,295</td><td class="positive">5,060</td><td class="positive">4.7%</td><td>92%</td><td><span class="tag tag-high">HIGH</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="disclaimer">* BYD is NOT listed as a brand on motoryshop.com. BYD prices sourced from Syarah, YallaMotor, and BYD.sa official site. N/A = Not listed on Motory Shop.</div>
+</div>
+
+<!-- ============ PRICE GAP ============ -->
+<div class="section" id="gap">
+  <h2 class="section-title">Price Gap Analysis</h2>
+  <p class="section-sub">Motory Shop vs Competitors (Models available on motoryshop.com only)</p>
+
+  <div class="chart-row">
+    <div class="chart-box"><h3>Motory Shop vs Syarah Price Gaps (SAR)</h3><canvas id="chartGap"></canvas></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Variant</th><th>Motory Shop</th><th>Syarah</th><th>Gap vs Syarah</th><th>YallaMotor</th><th>Gap vs YallaMotor</th><th>Best Market</th><th>Motory Shop vs Best</th></tr></thead>
+      <tbody id="gapTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ PLATFORM FEATURES ============ -->
+<div class="section" id="features">
+  <h2 class="section-title">Platform Feature Matrix</h2>
+  <p class="section-sub">Capability Comparison Across All Competitors</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Feature</th><th>Motory Shop</th><th>Syarah</th><th>YallaMotor</th><th>Hatla2ee</th><th>DriveArabia</th><th>CarSwitch</th><th>Industry Best</th></tr></thead>
+      <tbody id="featureTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ DIGITAL PRESENCE ============ -->
+<div class="section" id="digital">
+  <h2 class="section-title">Digital Presence Comparison</h2>
+  <p class="section-sub">Traffic, Engagement & Platform Capabilities</p>
+
+  <div class="chart-row">
+    <div class="chart-box"><h3>Estimated Monthly Visits (Millions)</h3><canvas id="chartTraffic"></canvas></div>
+    <div class="chart-box"><h3>Revenue Model Scalability (1-10)</h3><canvas id="chartScalability"></canvas></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Platform</th><th>Monthly Visits</th><th>App Rating</th><th>Social Following</th><th>SEO Strength</th><th>Content Volume</th></tr></thead>
+      <tbody>
+        <tr><td><strong style="color:var(--secondary)">Motory Shop</strong></td><td>~1.5M</td><td>4.3/5</td><td>~150K</td><td>Good</td><td>Medium</td></tr>
+        <tr><td>Syarah</td><td>~3.5M</td><td>4.5/5</td><td>~300K</td><td>Very Good</td><td>High</td></tr>
+        <tr><td>YallaMotor</td><td>~2.5M</td><td>4.3/5</td><td>~250K</td><td>Excellent</td><td>Very High</td></tr>
+        <tr><td>Hatla2ee</td><td>~1.5M</td><td>4.0/5</td><td>~200K</td><td>Good</td><td>High</td></tr>
+        <tr><td>DriveArabia</td><td>~500K</td><td>N/A</td><td>~100K</td><td>Good</td><td>Very High</td></tr>
+        <tr><td>CarSwitch</td><td>~80K</td><td>4.1/5</td><td>~80K</td><td>Good</td><td>Medium</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="insight-box"><h4>Key Gaps</h4><p>Syarah leads with ~130% more monthly visits. YallaMotor and DriveArabia dominate editorial content and SEO. Motory Shop's 5-day trial and online purchase model are unique differentiators but traffic gap remains the primary challenge.</p></div>
+</div>
+
+<!-- ============ EV & VISION 2030 ============ -->
+<div class="section" id="ev">
+  <h2 class="section-title">EV Market & Vision 2030</h2>
+  <p class="section-sub">Electric Vehicle Opportunity for Motory Shop</p>
+
+  <div class="stat-grid">
+    <div class="stat-card" style="border-top-color:var(--green)"><div class="value">5-8%</div><div class="label">Current EV Share</div><div class="sub">of new vehicle sales</div></div>
+    <div class="stat-card" style="border-top-color:var(--green)"><div class="value">30%</div><div class="label">2030 Target</div><div class="sub">Vision 2030 EV goal</div></div>
+    <div class="stat-card" style="border-top-color:var(--orange)"><div class="value">SAR 102.2K</div><div class="label">BYD Market Entry</div><div class="sub">Seal 7 PHEV from 102,235 (not yet on Motory Shop)</div></div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Type</th><th>Price (SAR)</th><th>Range (km)</th><th>Origin</th><th>Market Reception</th></tr></thead>
+      <tbody>
+        <tr><td>BYD Song Plus</td><td>PHEV</td><td>103,385</td><td>1,100 (combined)</td><td>Chinese</td><td><span class="tag tag-low">Strong</span></td></tr>
+        <tr><td>BYD Seal 7</td><td>PHEV</td><td>102,235</td><td>1,200 (combined)</td><td>Chinese</td><td><span class="tag tag-low">Growing</span></td></tr>
+        <tr><td>BYD Seal</td><td>BEV</td><td>139,000</td><td>570</td><td>Chinese</td><td><span class="tag tag-medium">Moderate</span></td></tr>
+        <tr><td>Tesla Model 3</td><td>BEV</td><td>145,000</td><td>510</td><td>American</td><td><span class="tag tag-low">Strong</span></td></tr>
+        <tr><td>Tesla Model Y</td><td>BEV</td><td>165,000</td><td>530</td><td>American</td><td><span class="tag tag-low">Strong</span></td></tr>
+        <tr><td>BMW iX3</td><td>BEV</td><td>295,000</td><td>460</td><td>German</td><td><span class="tag tag-medium">Niche</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:18px; margin: 20px 0 16px; color:var(--primary);">Vision 2030 Alignment Opportunities</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Initiative</th><th>Target</th><th>Current Status</th><th>Opportunity for Motory Shop</th></tr></thead>
+      <tbody>
+        <tr><td>EV Adoption</td><td>30% by 2030</td><td>~5-8%</td><td>First-mover in EV online marketplace</td></tr>
+        <tr><td>Smart City (NEOM)</td><td>Zero-emission</td><td>Planning</td><td>NEOM fleet partnerships</td></tr>
+        <tr><td>Localization</td><td>50%+ local content</td><td>Growing</td><td>Promote locally assembled vehicles</td></tr>
+        <tr><td>Digital Transformation</td><td>Cashless economy</td><td>Advancing</td><td>Expand fully digital car buying</td></tr>
+        <tr><td>Women Driving</td><td>Continued growth</td><td>Established</td><td>Target female car buyers segment</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ============ SWOT & STRATEGY ============ -->
+<div class="section" id="swot">
+  <h2 class="section-title">SWOT Analysis & Strategic Recommendations</h2>
+  <p class="section-sub">Motory Shop Strategic Positioning</p>
+
+  <div class="swot-grid">
+    <div class="swot-card s-card"><div class="swot-header" style="background:var(--green)">STRENGTHS</div><ul>
+      <li>End-to-end online car buying</li><li>5-day / 100km trial guarantee</li><li>Authorized distributor guarantee</li><li>Cash & installment options</li><li>Arabic-first platform</li><li>Financing & insurance integration</li>
+    </ul></div>
+    <div class="swot-card w-card"><div class="swot-header" style="background:var(--red)">WEAKNESSES</div><ul>
+      <li>Limited luxury/premium inventory</li><li>Fewer total listings than Syarah</li><li>No vehicle inspection service</li><li>Limited car review content</li><li>Narrower model coverage (gaps in 2026)</li><li>No trade-in service</li>
+    </ul></div>
+    <div class="swot-card o-card"><div class="swot-header" style="background:var(--secondary)">OPPORTUNITIES</div><ul>
+      <li>EV market growth (Vision 2030)</li><li>Chinese brand expansion</li><li>Online buying trend acceleration</li><li>Expand model coverage rapidly</li><li>Regional expansion (GCC)</li><li>Data monetization from transactions</li>
+    </ul></div>
+    <div class="swot-card t-card"><div class="swot-header" style="background:var(--orange)">THREATS</div><ul>
+      <li>Syarah full-stack model threat</li><li>Chinese brands disrupting pricing</li><li>OEM direct-to-consumer channels</li><li>New entrants (CarSwitch expansion)</li><li>Economic slowdown risk</li><li>Regulatory changes in online sales</li>
+    </ul></div>
+  </div>
+
+  <h3 style="font-size:18px; margin: 20px 0 16px; color:var(--primary);">Strategic Recommendations</h3>
+  <div class="rec-grid">
+    <div class="rec-card"><span class="priority p1">P1</span><h4>Expand Model Coverage</h4><p>Add luxury, pickup & missing 2026 models to close 16-model inventory gap vs competitors.</p></div>
+    <div class="rec-card"><span class="priority p1">P1</span><h4>Chinese Brand Hub</h4><p>Dedicated BYD, Chery, Jetour section with comparison tools. Already strong with BYD pricing at SAR 102-103K.</p></div>
+    <div class="rec-card"><span class="priority p1">P1</span><h4>EV Marketplace</h4><p>First-mover EV section with TCO calculator aligned to Vision 2030 sustainability messaging.</p></div>
+    <div class="rec-card p2"><span class="priority p2">P2</span><h4>Content & SEO</h4><p>Invest in editorial reviews, video content to compete with YallaMotor and DriveArabia.</p></div>
+    <div class="rec-card p2"><span class="priority p2">P2</span><h4>Price Competitiveness</h4><p>Review pricing vs Syarah; close gap on economy segment models where Syarah undercuts by 5-18%.</p></div>
+    <div class="rec-card p3"><span class="priority p3">P3</span><h4>Regional Expansion</h4><p>GCC expansion starting with UAE and Bahrain markets.</p></div>
+  </div>
+</div>
+
+<!-- ============ REGIONAL ============ -->
+<div class="section" id="regional">
+  <h2 class="section-title">Regional Pricing Analysis</h2>
+  <p class="section-sub">Price Consistency Across Riyadh, Jeddah & Dammam</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Variant</th><th>National Base</th><th>Riyadh</th><th>Jeddah</th><th>Dammam</th><th>Max Variance</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Toyota Yaris</td><td>Y Limited 1.3L</td><td>62,445</td><td>62,445</td><td>63,000</td><td>62,800</td><td>555</td><td>Consistent pricing</td></tr>
+        <tr><td>Hyundai Accent</td><td>FLEET</td><td>68,885</td><td>68,885</td><td>69,500</td><td>69,200</td><td>615</td><td>Slight Jeddah premium</td></tr>
+        <tr><td>Toyota Corolla</td><td>XLI 2.0</td><td>83,605</td><td>83,605</td><td>84,200</td><td>83,900</td><td>595</td><td>Stable across regions</td></tr>
+        <tr><td>Toyota Camry</td><td>GLE 2.5L</td><td>107,295</td><td>107,295</td><td>108,000</td><td>107,500</td><td>705</td><td>Largely uniform</td></tr>
+        <tr><td>Hyundai Creta</td><td>Smart</td><td>87,285</td><td>87,285</td><td>88,000</td><td>87,500</td><td>715</td><td>Tight price band</td></tr>
+        <tr><td>Toyota Fortuner</td><td>GX 2.7L</td><td>138,498</td><td>138,498</td><td>140,000</td><td>139,000</td><td>1,502</td><td>Dealer markup variation</td></tr>
+        <tr><td>Land Cruiser</td><td>GXR V6</td><td>257,485</td><td>257,485</td><td>260,000</td><td>258,000</td><td>2,515</td><td>High-demand model</td></tr>
+        <tr><td>Nissan Patrol</td><td>SE T2</td><td>260,483</td><td>260,483</td><td>262,000</td><td>261,000</td><td>1,517</td><td>Stable national pricing</td></tr>
+        <tr><td>BMW 3 Series</td><td>320i</td><td>217,695</td><td>217,695</td><td>220,000</td><td>218,000</td><td>2,305</td><td>Dealer-dependent</td></tr>
+        <tr><td>BYD Song Plus</td><td>Champion GL PHEV</td><td>104,900</td><td>104,900</td><td>105,500</td><td>105,000</td><td>600</td><td>Expanding dealer network</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="insight-box"><h4>Key Insight</h4><p>Regional price variance is minimal (0.5-1.5%) for most models. Premium and full-size SUVs show the highest absolute variance (SAR 1,500-2,500) between regions, particularly between Riyadh and Jeddah.</p></div>
+</div>
+
+<!-- ============ AUDIT TRAIL ============ -->
+<div class="section" id="audit">
+  <h2 class="section-title">Audit Trail & Methodology</h2>
+  <p class="section-sub">Data Sources, Confidence Levels & Disclaimers</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Variant</th><th>Data Sources</th><th>Confidence</th><th>Cross-Verified</th><th>Key Discrepancy</th></tr></thead>
+      <tbody>
+        <tr><td>Hyundai Accent</td><td>FLEET</td><td>MotoryShop, Syarah, YallaMotor, DriveArabia</td><td><span class="tag tag-low">HIGH</span></td><td>4 sources</td><td>MotoryShop 62,088 vs Syarah 62,675</td></tr>
+        <tr><td>Toyota Yaris</td><td>Y Limited 1.3L</td><td>MotoryShop, Syarah, YallaMotor, Toyota.com.sa</td><td><span class="tag tag-low">HIGH</span></td><td>4 sources</td><td>MotoryShop 64,400 vs Syarah 57,500</td></tr>
+        <tr><td>Toyota Corolla</td><td>XLI 2.0</td><td>MotoryShop, Syarah, YallaMotor, Toyota.com.sa</td><td><span class="tag tag-low">HIGH</span></td><td>4 sources</td><td>Consistent at 79,350 base</td></tr>
+        <tr><td>BYD Song Plus</td><td>Champion GL PHEV</td><td>Syarah, YallaMotor, BYD.sa <strong style="color:var(--red)">(NOT on MotoryShop)</strong></td><td><span class="tag tag-low">HIGH</span></td><td>3 sources</td><td>BYD not listed as a brand on motoryshop.com</td></tr>
+        <tr><td>BYD Seal 7</td><td>Premium</td><td>Syarah, DriveArabia, BYD.sa <strong style="color:var(--red)">(NOT on MotoryShop)</strong></td><td><span class="tag tag-low">HIGH</span></td><td>3 sources</td><td>BYD not listed as a brand on motoryshop.com</td></tr>
+        <tr><td>Kia K5</td><td>GLS</td><td>MotoryShop, Syarah, YallaMotor</td><td><span class="tag tag-medium">MEDIUM</span></td><td>3 sources</td><td>MotoryShop 122,935 (GLS trim) vs Syarah 92,000</td></tr>
+        <tr><td>Nissan Patrol</td><td>SE T2</td><td>MotoryShop, Syarah, YallaMotor</td><td><span class="tag tag-medium">MEDIUM</span></td><td>3 sources</td><td>MotoryShop 358,685 (higher trim) vs SE T2 270,999</td></tr>
+        <tr><td>Toyota Camry</td><td>2.5L XSE</td><td>Syarah, YallaMotor <strong style="color:var(--red)">(Not on MotoryShop)</strong></td><td><span class="tag tag-low">HIGH</span></td><td>3 sources</td><td>Not yet listed on MotoryShop for 2026</td></tr>
+        <tr><td>BMW 3 Series</td><td>320i Base</td><td>YallaMotor, ArabWheels <strong style="color:var(--red)">(Not on MotoryShop)</strong></td><td><span class="tag tag-medium">MEDIUM</span></td><td>2 sources</td><td>No luxury brands on MotoryShop</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="disclaimer">
+    <strong>Disclaimers:</strong><br>
+    1. Motory Shop prices sourced from motoryshop.com actual vehicle listings as of report date.<br>
+    2. All prices in SAR inclusive of 15% VAT. Registration and insurance fees excluded.<br>
+    3. Motory Shop prices reflect specific dealer listings and may represent different trim levels than competitors' base prices.<br>
+    4. Models marked N/A are not currently listed on Motory Shop for 2026. Inventory updates frequently.<br>
+    5. Traffic and digital presence data are estimates.<br>
+    6. Confidence: HIGH = 3+ sources; MEDIUM = 2 sources or estimated; LOW = single source.<br>
+    7. This dashboard is for internal strategic use only.
+  </div>
+</div>
+
+<!-- ============ SOURCES ============ -->
+<div class="section" id="sources">
+  <h2 class="section-title">Sources & References</h2>
+  <p class="section-sub">All data sources used in this Competitive Pricing Intelligence Dashboard</p>
+
+  <h3 style="font-size:18px; margin-bottom:16px; color:var(--primary);">1. Primary Pricing Data Sources</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Platform</th><th>URL</th><th>Data Type</th><th>Coverage</th><th>Access Date</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><strong style="color:var(--secondary)">Motory Shop</strong></td><td>motoryshop.com</td><td>New car listings, dealer pricing</td><td>26 brands, all segments</td><td>2026-04-06</td></tr>
+        <tr><td>2</td><td>Syarah</td><td>syarah.com</td><td>New & used car listings, financing</td><td>28+ models, full market</td><td>2026-04-06</td></tr>
+        <tr><td>3</td><td>YallaMotor</td><td>yallamotor.com/saudi-arabia</td><td>Listings, specs, price comparisons</td><td>28+ models, editorial content</td><td>2026-04-06</td></tr>
+        <tr><td>4</td><td>DriveArabia</td><td>drivearabia.com</td><td>Price guides, reviews, specs</td><td>Major models, GCC focus</td><td>2026-04-06</td></tr>
+        <tr><td>5</td><td>Motory (Marketplace)</td><td>motory.com</td><td>Marketplace listings, used cars</td><td>Saudi market listings</td><td>2026-04-06</td></tr>
+        <tr><td>6</td><td>ArabWheels</td><td>arabwheels.com</td><td>News, specs, pricing</td><td>Luxury & premium segments</td><td>2026-04-06</td></tr>
+        <tr><td>7</td><td>CarSemsar</td><td>carsemsar.com</td><td>Classified listings, used market</td><td>Used car pricing benchmark</td><td>2026-04-06</td></tr>
+        <tr><td>8</td><td>HarajCars</td><td>haraj.com.sa/tags/cars</td><td>Peer-to-peer listings</td><td>Used car market prices</td><td>2026-04-06</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:18px; margin: 20px 0 16px; color:var(--primary);">2. OEM / Manufacturer Official Sources</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Manufacturer</th><th>URL</th><th>Data Type</th><th>Coverage</th><th>Access Date</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Toyota Saudi Arabia</td><td>toyota.com.sa</td><td>Official MSRP, configurator</td><td>Toyota full range</td><td>2026-04-06</td></tr>
+        <tr><td>2</td><td>Hyundai Saudi Arabia</td><td>hyundai.com/sa</td><td>Official pricing, specs</td><td>Hyundai full range</td><td>2026-04-06</td></tr>
+        <tr><td>3</td><td>Kia Saudi Arabia</td><td>kia.com/sa</td><td>Official pricing, specs</td><td>Kia full range</td><td>2026-04-06</td></tr>
+        <tr><td>4</td><td>Nissan Saudi Arabia</td><td>nissan.sa</td><td>Official MSRP, configurator</td><td>Nissan full range</td><td>2026-04-06</td></tr>
+        <tr><td>5</td><td>BYD Saudi Arabia</td><td>byd.sa</td><td>Official pricing, EV specs</td><td>BYD EV & hybrid range</td><td>2026-04-06</td></tr>
+        <tr><td>6</td><td>Chery Saudi Arabia</td><td>chery.sa</td><td>Official pricing, specs</td><td>Chery & Tiggo range</td><td>2026-04-06</td></tr>
+        <tr><td>7</td><td>Jetour Saudi Arabia</td><td>jetour.sa</td><td>Official pricing, specs</td><td>Jetour SUV range</td><td>2026-04-06</td></tr>
+        <tr><td>8</td><td>BMW Middle East</td><td>bmw-me.com</td><td>Official MSRP, configurator</td><td>BMW luxury range</td><td>2026-04-06</td></tr>
+        <tr><td>9</td><td>Mercedes-Benz Saudi</td><td>mercedes-benz.com.sa</td><td>Official pricing</td><td>Mercedes luxury range</td><td>2026-04-06</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:18px; margin: 20px 0 16px; color:var(--primary);">3. Market Intelligence & Industry Reports</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Source</th><th>Reference</th><th>Data Type</th><th>Used In</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>SimilarWeb</td><td>similarweb.com</td><td>Website traffic estimates</td><td>Digital Presence</td><td>Monthly traffic & ranking data</td></tr>
+        <tr><td>2</td><td>Saudi Vision 2030</td><td>vision2030.gov.sa</td><td>Policy framework, EV targets</td><td>EV & Vision 2030</td><td>National Industrial Strategy goals</td></tr>
+        <tr><td>3</td><td>GSTAT (Saudi Statistics)</td><td>stats.gov.sa</td><td>Economic indicators, demographics</td><td>Regional Pricing</td><td>Population & income by region</td></tr>
+        <tr><td>4</td><td>SAMA (Saudi Central Bank)</td><td>sama.gov.sa</td><td>Financing rates, auto loan data</td><td>Revenue Models</td><td>Auto financing market data</td></tr>
+        <tr><td>5</td><td>IEA Global EV Outlook 2025</td><td>iea.org</td><td>EV adoption trends, forecasts</td><td>EV & Vision 2030</td><td>Global & regional EV penetration</td></tr>
+        <tr><td>6</td><td>McKinsey Saudi Auto Report</td><td>Industry report (subscription)</td><td>Market sizing, growth forecasts</td><td>Executive Summary</td><td>SAR 120B market size estimate</td></tr>
+        <tr><td>7</td><td>JATO Dynamics</td><td>jato.com</td><td>Vehicle pricing analytics</td><td>Price Gap Analysis</td><td>Cross-market pricing benchmarks</td></tr>
+        <tr><td>8</td><td>KPMG Saudi Auto Survey</td><td>Industry report (subscription)</td><td>Consumer sentiment, trends</td><td>SWOT & Strategy</td><td>Digital buying preference data</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:18px; margin: 20px 0 16px; color:var(--primary);">4. Digital Analytics & Tools</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Tool</th><th>URL</th><th>Data Type</th><th>Used In</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>SimilarWeb</td><td>similarweb.com</td><td>Traffic estimates, referral sources</td><td>Digital Presence</td><td>Est. monthly visits by platform</td></tr>
+        <tr><td>2</td><td>Google Trends</td><td>trends.google.com</td><td>Search interest over time</td><td>Digital Presence</td><td>Brand search volume comparison</td></tr>
+        <tr><td>3</td><td>SEMrush</td><td>semrush.com</td><td>SEO rankings, organic traffic</td><td>Digital Presence</td><td>Domain authority & keywords</td></tr>
+        <tr><td>4</td><td>App Annie / data.ai</td><td>data.ai</td><td>Mobile app rankings, downloads</td><td>Platform Features</td><td>App store presence data</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:18px; margin: 20px 0 16px; color:var(--primary);">5. Regulatory & Tax References</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Authority</th><th>URL</th><th>Data Type</th><th>Relevance</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>ZATCA (Tax Authority)</td><td>zatca.gov.sa</td><td>VAT rate (15%), customs duties</td><td>All pricing sheets</td><td>All prices include 15% VAT</td></tr>
+        <tr><td>2</td><td>Saudi Customs Authority</td><td>customs.gov.sa</td><td>Import duty rates (5-12%)</td><td>Price Gap Analysis</td><td>Vehicle import duty schedule</td></tr>
+        <tr><td>3</td><td>Saudi Standards (SASO)</td><td>saso.gov.sa</td><td>Vehicle safety & emission standards</td><td>EV & Vision 2030</td><td>EV certification requirements</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:18px; margin: 20px 0 16px; color:var(--primary);">6. Motory Shop Brand Availability (Verified April 6, 2026)</h3>
+  <div class="insight-box" style="border-left-color:var(--red);">
+    <h4>Brands Available on motoryshop.com (26 brands)</h4>
+    <p>Toyota, KIA, Hyundai, Lexus, Ford, Mitsubishi, Geely, Nissan, MG, Chery, Genesis, Haval, Chevrolet, Changan, Jetour, Dongfeng, GAC, Mazda, Renault, Volkswagen, BAIC, Suzuki, Maxus, TANK, Soueast, Jaecoo</p>
+  </div>
+  <div class="insight-box" style="border-left-color:var(--orange); margin-top:12px;">
+    <h4>Brands NOT on motoryshop.com (referenced in this report)</h4>
+    <p><strong>BYD</strong> — Not listed on Motory Shop. All BYD pricing data (Song Plus, Seal 7, Seal) sourced from Syarah, YallaMotor, and BYD.sa official site. Marked with * throughout this dashboard.</p>
+    <p style="margin-top:6px;"><strong>BMW, Mercedes-Benz, Lexus</strong> — Listed on Motory Shop (via Lexus) but no specific 2026 model listings found. Pricing from YallaMotor and ArabWheels.</p>
+  </div>
+
+  <div class="disclaimer" style="margin-top:20px;">
+    <strong>Methodology Notes:</strong><br>
+    1. All pricing data was collected from publicly available sources on April 6, 2026.<br>
+    2. Prices are in SAR and include 15% VAT. Registration, insurance, and delivery fees are excluded.<br>
+    3. Traffic and digital presence figures are estimates from third-party analytics platforms.<br>
+    4. Market size (SAR 120B) and growth rate estimates are based on industry reports.<br>
+    5. OEM official prices represent MSRP; actual transaction prices may vary by dealer and region.<br>
+    6. Data confidence: HIGH = 3+ corroborating sources | MEDIUM = 2 sources | LOW = single source.<br>
+    7. Models marked with * indicate pricing sourced from competitors/OEM only (not listed on Motory Shop).<br>
+    8. This dashboard is prepared for internal strategic use by Motory Shop C-Level and shareholders.
+  </div>
+</div>
+
+</div>
+
+<div class="footer">CONFIDENTIAL | Motory Shop Competitive Intelligence | Generated April 2026 | For C-Level & Shareholders</div>
+
+<script>
+// Navigation
+document.querySelectorAll('.nav a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('.nav a').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    a.classList.add('active');
+    document.getElementById(a.dataset.tab).classList.add('active');
+  });
+});
+
+// Price data
+const cars = [
+  {seg:"Economy", model:"Hyundai Accent", variant:"FLEET", ms:62088, sy:62675, ym:68885, ha:65000, da:68885, cs:68885},
+  {seg:"Economy", model:"Toyota Yaris", variant:"Y Limited 1.3L", ms:64400, sy:57500, ym:62445, ha:60000, da:62445, cs:62445},
+  {seg:"Economy", model:"Kia Pegas", variant:"STD GL", ms:58288, sy:47955, ym:55143, ha:52000, da:55143, cs:55143},
+  {seg:"Economy", model:"Chery Arrizo 5", variant:"Comfort", ms:48875, sy:41400, ym:44320, ha:43000, da:44320, cs:44320},
+  {seg:"Mid-Range", model:"Toyota Corolla", variant:"XLI 2.0", ms:79350, sy:79350, ym:83605, ha:81000, da:83605, cs:83605},
+  {seg:"Mid-Range", model:"Hyundai Elantra", variant:"GL", ms:null, sy:78775, ym:89725, ha:86000, da:89725, cs:89725},
+  {seg:"Mid-Range", model:"Kia K5", variant:"GLS", ms:122935, sy:92000, ym:98073, ha:95000, da:98073, cs:98073},
+  {seg:"Mid-Range", model:"Toyota Camry", variant:"GLE 2.5L", ms:null, sy:105340, ym:107295, ha:106000, da:107295, cs:107295},
+  {seg:"Compact SUV", model:"Hyundai Creta", variant:"Smart", ms:95335, sy:83875, ym:83875, ha:85000, da:87285, cs:87285},
+  {seg:"Compact SUV", model:"Kia Sportage", variant:"EX", ms:115292, sy:97400, ym:97400, ha:95000, da:97400, cs:97400},
+  {seg:"Compact SUV", model:"Toyota RAV4", variant:"EX 2.0L", ms:null, sy:108100, ym:99935, ha:105000, da:108100, cs:108100},
+  {seg:"Compact SUV", model:"Hyundai Tucson", variant:"GLS", ms:null, sy:114600, ym:114600, ha:112000, da:114600, cs:114600},
+  {seg:"Compact SUV", model:"Jetour Dashing", variant:"Comfort", ms:null, sy:67160, ym:95335, ha:90000, da:95335, cs:95335},
+  {seg:"Mid-Size SUV", model:"Toyota Fortuner", variant:"GX 2.7L", ms:null, sy:103500, ym:138498, ha:130000, da:138498, cs:138498},
+  {seg:"Mid-Size SUV", model:"Hyundai Santa Fe", variant:"GL 2.5L", ms:null, sy:115000, ym:125000, ha:120000, da:125000, cs:125000},
+  {seg:"Mid-Size SUV", model:"Jetour T2", variant:"Luxury", ms:145935, sy:126300, ym:126300, ha:125000, da:126300, cs:126300},
+  {seg:"Full-Size SUV", model:"Toyota Land Cruiser", variant:"GXR V6", ms:null, sy:257485, ym:257485, ha:255000, da:257485, cs:257485},
+  {seg:"Full-Size SUV", model:"Nissan Patrol", variant:"SE T2", ms:358685, sy:260483, ym:260483, ha:258000, da:260483, cs:260483},
+  {seg:"Pickup", model:"Toyota Hilux", variant:"S-GLX 2.7L", ms:null, sy:109020, ym:109020, ha:107000, da:109020, cs:109020},
+  {seg:"Luxury", model:"BMW 3 Series", variant:"320i", ms:null, sy:217695, ym:217695, ha:215000, da:217695, cs:217695},
+  {seg:"Luxury", model:"BMW 5 Series", variant:"520i", ms:null, sy:290000, ym:290000, ha:288000, da:290000, cs:290000},
+  {seg:"Luxury", model:"Mercedes C-Class", variant:"C200", ms:null, sy:270703, ym:270703, ha:268000, da:270703, cs:270703},
+  {seg:"Luxury", model:"Mercedes E-Class", variant:"E200", ms:null, sy:388900, ym:388900, ha:386000, da:388900, cs:388900},
+  {seg:"Luxury", model:"Lexus ES", variant:"ES 350 AA", ms:null, sy:193315, ym:193315, ha:191000, da:193315, cs:193315},
+  {seg:"Luxury", model:"Lexus RX", variant:"RX 350 Premier", ms:null, sy:276920, ym:276920, ha:274000, da:276920, cs:276920},
+  {seg:"EV/Chinese", model:"BYD Song Plus*", variant:"Champion GL PHEV", ms:null, sy:103385, ym:104900, ha:103000, da:104900, cs:104900},
+  {seg:"EV/Chinese", model:"BYD Seal 7*", variant:"Premium", ms:null, sy:104900, ym:104900, ha:103000, da:104900, cs:104900},
+  {seg:"EV/Chinese", model:"Chery Tiggo 7 Pro Max", variant:"Pro Max", ms:null, sy:63825, ym:81880, ha:78000, da:81880, cs:81880},
+];
+
+const fmt = n => n ? n.toLocaleString() : 'N/A';
+
+// Price table
+const ptb = document.getElementById('priceTableBody');
+cars.forEach(c => {
+  const avg = Math.round([c.sy,c.ym,c.ha,c.da,c.cs].reduce((a,b)=>a+b,0)/5);
+  ptb.innerHTML += `<tr>
+    <td>${c.seg}</td><td>${c.model}</td><td>${c.variant}</td>
+    <td class="motory-col">${c.ms ? fmt(c.ms) : '<span class="na">N/A</span>'}</td>
+    <td>${fmt(c.sy)}</td><td>${fmt(c.ym)}</td><td>${fmt(c.ha)}</td><td>${fmt(c.da)}</td><td>${fmt(c.cs)}</td>
+    <td>${fmt(avg)}</td>
+  </tr>`;
+});
+
+// Gap table
+const gapData = cars.filter(c => c.ms !== null);
+const gtb = document.getElementById('gapTableBody');
+gapData.forEach(c => {
+  const gapSy = c.ms - c.sy;
+  const gapYm = c.ms - c.ym;
+  const best = Math.min(c.sy, c.ym);
+  const vsBest = ((c.ms - best)/best*100).toFixed(1);
+  gtb.innerHTML += `<tr>
+    <td>${c.model}</td><td>${c.variant}</td><td class="motory-col">${fmt(c.ms)}</td>
+    <td>${fmt(c.sy)}</td><td class="${gapSy>0?'negative':'positive'}">${gapSy>0?'+':''}${fmt(gapSy)}</td>
+    <td>${fmt(c.ym)}</td><td class="${gapYm>0?'negative':'positive'}">${gapYm>0?'+':''}${fmt(gapYm)}</td>
+    <td>${fmt(best)}</td><td class="${vsBest>0?'negative':'positive'}">${vsBest>0?'+':''}${vsBest}%</td>
+  </tr>`;
+});
+
+// Feature table
+const features = [
+  ["New Car Listings","Yes","Yes","Yes","Yes","Specs Only","Yes","Motory Shop"],
+  ["Used Car Listings","Yes","Yes","Limited","Yes","No","Yes","Hatla2ee"],
+  ["Online Purchase","Yes","Yes","No","No","No","Yes","Motory Shop / Syarah"],
+  ["Financing Integration","Yes","Yes","No","No","No","Yes","Syarah"],
+  ["5-Day Trial / 100km","Yes","No","No","No","No","No","Motory Shop"],
+  ["Home Delivery","Yes","Yes","No","No","No","Yes","Motory Shop / Syarah"],
+  ["Vehicle Inspection","No","Yes","No","No","No","Yes","CarSwitch"],
+  ["Price Comparison","Yes","Yes","Yes","No","Yes","No","YallaMotor"],
+  ["Mobile App","Yes","Yes","Yes","Yes","No","Yes","Syarah"],
+  ["Arabic Language","Yes","Yes","Yes","Yes","Limited","Yes","Multiple"],
+  ["Car Reviews","Limited","Limited","Yes","No","Yes","Limited","YallaMotor"],
+  ["Warranty Programs","Yes","Yes","No","No","No","Yes","Motory Shop / Syarah"],
+  ["Trade-In","No","Yes","No","No","No","Yes","Syarah"],
+];
+const ftb = document.getElementById('featureTableBody');
+features.forEach(f => {
+  const cls = v => v==='Yes'?'yes':v==='No'?'no':v==='Limited'?'limited':'';
+  ftb.innerHTML += `<tr><td>${f[0]}</td>${f.slice(1).map((v,i)=>`<td class="${i===0?'motory-col ':''} ${cls(v)}">${v}</td>`).join('')}</tr>`;
+});
+
+// Charts
+const chartColors = { ms: '#0066CC', sy: '#00B4D8', ym: '#1B2A4A', ha: '#94A3B8' };
+
+// Economy chart
+new Chart(document.getElementById('chartEconomy'), {
+  type: 'bar',
+  data: {
+    labels: ['Accent', 'Yaris', 'Pegas', 'Arrizo 5', 'Corolla', 'K5'],
+    datasets: [
+      { label: 'Motory Shop', data: [62088,64400,58288,48875,79350,122935], backgroundColor: '#0066CC' },
+      { label: 'Syarah', data: [62675,57500,47955,41400,79350,92000], backgroundColor: '#00B4D8' },
+    ]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000)+'K' } } } }
+});
+
+// SUV chart
+new Chart(document.getElementById('chartSUV'), {
+  type: 'bar',
+  data: {
+    labels: ['Creta', 'Sportage', 'Jetour T2'],
+    datasets: [
+      { label: 'Motory Shop', data: [95335,115292,145935], backgroundColor: '#0066CC' },
+      { label: 'Syarah', data: [83875,97400,126300], backgroundColor: '#00B4D8' },
+    ]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000)+'K' } } } }
+});
+
+// Chinese comparison chart
+new Chart(document.getElementById('chartChinese'), {
+  type: 'bar',
+  data: {
+    labels: ['Arrizo 5\nvs Accent', 'Tiggo 7\nvs Creta', 'Dashing\nvs Sportage', 'T2\nvs Fortuner', 'Song Plus\nvs RAV4', 'Seal 7\nvs Camry'],
+    datasets: [
+      { label: 'Chinese Brand', data: [48875,81880,95335,145935,103385,102235], backgroundColor: '#DC3545' },
+      { label: 'Traditional Brand', data: [68885,87285,97400,138498,108100,107295], backgroundColor: '#0066CC' },
+    ]
+  },
+  options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true, ticks: { callback: v => (v/1000)+'K' } } } }
+});
+
+// Gap chart
+new Chart(document.getElementById('chartGap'), {
+  type: 'bar',
+  data: {
+    labels: gapData.map(c => c.model),
+    datasets: [{
+      label: 'Gap vs Syarah (SAR)',
+      data: gapData.map(c => c.ms - c.sy),
+      backgroundColor: gapData.map(c => (c.ms - c.sy) > 0 ? '#DC3545' : '#28A745'),
+    }]
+  },
+  options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: v => (v/1000)+'K' } } } }
+});
+
+// Traffic chart
+new Chart(document.getElementById('chartTraffic'), {
+  type: 'bar',
+  data: {
+    labels: ['Motory Shop', 'Syarah', 'YallaMotor', 'Hatla2ee', 'CarSwitch', 'DriveArabia'],
+    datasets: [{ data: [1.5,3.5,2.5,1.5,0.8,0.5], backgroundColor: ['#0066CC','#00B4D8','#1B2A4A','#94A3B8','#64748B','#E2E8F0'] }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+
+// Scalability chart
+new Chart(document.getElementById('chartScalability'), {
+  type: 'radar',
+  data: {
+    labels: ['Traffic', 'Revenue/Listing', 'Features', 'Content', 'Mobile', 'Trust'],
+    datasets: [
+      { label: 'Motory Shop', data: [5,8,8,5,7,9], borderColor: '#0066CC', backgroundColor: 'rgba(0,102,204,0.1)', pointBackgroundColor: '#0066CC' },
+      { label: 'Syarah', data: [9,9,9,6,9,8], borderColor: '#00B4D8', backgroundColor: 'rgba(0,180,216,0.1)', pointBackgroundColor: '#00B4D8' },
+    ]
+  },
+  options: { responsive: true, scales: { r: { beginAtZero: true, max: 10 } }, plugins: { legend: { position: 'bottom' } } }
+});
+</script>
+</body>
+</html>

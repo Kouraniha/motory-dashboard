@@ -42,7 +42,7 @@ with open(DASHBOARD_SRC, encoding="utf-8") as f:
 
 # ─── Update date badge ────────────────────────────────────────────────────────
 html = re.sub(
-    r'(<div class="date-badge">Data as of: )([^<]+)(</div>)',
+        r'(<div class="date-badge"[^>]*>)([^<]+)(</div>)',
     rf'\g<1>{today}\3',
     html
 )
